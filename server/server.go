@@ -18,9 +18,9 @@ import (
 
 	socks5 "github.com/armon/go-socks5"
 	"github.com/gorilla/websocket"
-	"github.com/mcbernie/chisel/share"
 	"github.com/jpillora/requestlog"
 	"github.com/jpillora/sizestr"
+	"github.com/mcbernie/chisel/share"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -40,6 +40,10 @@ type Server struct {
 	Users    chshare.Users
 	sessions chshare.Users
 
+	//adresses is a list of all clients with
+	//defined name for proxy connections.
+	addresses map[string]*ssh.ServerConn
+
 	fingerprint  string
 	sessCount    int32
 	connCount    int32
@@ -55,6 +59,7 @@ func NewServer(config *Config) (*Server, error) {
 		Logger:     chshare.NewLogger("server"),
 		httpServer: chshare.NewHTTPServer(),
 		sessions:   chshare.Users{},
+		addresses:  make(map[string]*ssh.ServerConn),
 	}
 	s.Info = true
 
@@ -272,6 +277,19 @@ func (s *Server) handleWS(w http.ResponseWriter, req *http.Request) {
 			}
 		}
 	}
+
+	//get name of client
+	if c.Name != "" {
+		if _, ok := s.addresses[c.Name]; ok == true {
+			failed(s.Errorf("client name '%s' already exists", c.Name))
+			return
+		}
+
+		s.Debugf("Add client %s to addresses Map", c.Name)
+		s.addresses[c.Name] = sshConn
+		defer delete(s.addresses, c.Name)
+	}
+
 	//success!
 	r.Reply(true, nil)
 
@@ -313,12 +331,41 @@ func (s *Server) handleSSHChannels(clientLog *chshare.Logger, chans <-chan ssh.N
 		go ssh.DiscardRequests(reqs)
 		//handle stream type
 		connID := atomic.AddInt32(&s.connCount, 1)
+
+		if strings.Contains(remote, "@") {
+			temp := strings.Split(remote, "@")
+			remote = temp[0]
+			proxy := temp[1]
+			s.Debugf("Handle Proxy Stream to %s", proxy)
+			go s.handleProxyStream(clientLog.Fork("proxy#%05d", connID), stream, remote, proxy)
+			continue
+		}
+
 		if socks {
 			go s.handleSocksStream(clientLog.Fork("socks#%05d", connID), stream)
 		} else {
 			go s.handleTCPStream(clientLog.Fork(" tcp#%05d", connID), stream, remote)
 		}
 	}
+}
+
+func (s *Server) handleProxyStream(l *chshare.Logger, src io.ReadWriteCloser, remote string, proxy string) {
+	//get serverConnection from client named "proxy"
+	srvConn := s.addresses[proxy]
+
+	dst, err := chshare.OpenStream(srvConn, remote)
+	if err != nil {
+		l.Infof("Proxystream error: %s", err)
+		src.Close()
+		return
+	}
+
+	atomic.AddInt32(&s.connOpen, 1)
+	l.Debugf("%s Open", s.connStatus())
+	sent, received := chshare.Pipe(src, dst)
+	atomic.AddInt32(&s.connOpen, -1)
+
+	l.Debugf("%s Close (sent %s received %s)", s.connStatus(), sizestr.ToString(sent), sizestr.ToString(received))
 }
 
 func (s *Server) handleSocksStream(l *chshare.Logger, src io.ReadWriteCloser) {
