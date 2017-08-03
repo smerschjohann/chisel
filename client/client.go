@@ -130,13 +130,19 @@ func (c *Client) Start() error {
 		via = " via " + c.httpProxyURL.String()
 	}
 	//prepare proxies
-	for i, r := range c.config.shared.Remotes {
-		proxy := newTCPProxy(c, i, r)
-		if err := proxy.start(); err != nil {
-			return err
+	//but skip if client has a name!
+	if c.config.Name != "" {
+		for i, r := range c.config.shared.Remotes {
+			proxy := newTCPProxy(c, i, r)
+			if err := proxy.start(); err != nil {
+				return err
+			}
+			c.proxies = append(c.proxies, proxy)
 		}
-		c.proxies = append(c.proxies, proxy)
+	} else {
+		c.Infof("Skip Proxy because client is proxy!")
 	}
+
 	c.Infof("Connecting to %s%s\n", c.server, via)
 	//
 	go c.loop()

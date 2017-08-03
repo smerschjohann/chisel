@@ -314,15 +314,16 @@ func (s *Server) handleSSHRequests(clientLog *chshare.Logger, reqs <-chan *ssh.R
 
 func (s *Server) handleSSHChannels(clientLog *chshare.Logger, chans <-chan ssh.NewChannel) {
 	for ch := range chans {
-		if ch.ChannelType() == "lesihc" {
-			clientLog.Debugf("reverse proxy connection ignore!")
+		s.Debugf("ChannelType %s", ch.ChannelType())
+		if ch.ChannelType() != "chisel" {
+			s.Debugf("reverse proxy connection ignore!")
 			continue
 		}
 		remote := string(ch.ExtraData())
 		socks := remote == "socks"
 		//dont accept socks when --socks5 isn't enabled
 		if socks && s.socksServer == nil {
-			clientLog.Debugf("Denied socks request, please enable --socks5")
+			s.Debugf("Denied socks request, please enable --socks5")
 			ch.Reject(ssh.Prohibited, "SOCKS5 is not enabled on the server")
 			continue
 		}
@@ -347,7 +348,6 @@ func (s *Server) handleSSHChannels(clientLog *chshare.Logger, chans <-chan ssh.N
 		if socks {
 			go s.handleSocksStream(clientLog.Fork("socks#%05d", connID), stream)
 		} else {
-			s.Debugf("remote: %s", remote)
 			go s.handleTCPStream(clientLog.Fork(" tcp#%05d", connID), stream, "0.0.0.0:3001")
 		}
 	}
