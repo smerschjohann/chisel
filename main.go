@@ -187,12 +187,15 @@ var clientHelp = `
   <remote>s are remote connections tunnelled through the server, each of
   which come in the form:
 
-    <local-host>:<local-port>:<remote-host>:<remote-port>
+    <local-host>:<local-port>:<remote-host>:<remote-port>@<client-name>
 
     ■ local-host defaults to 0.0.0.0 (all interfaces).
     ■ local-port defaults to remote-port.
     ■ remote-port is required*.
     ■ remote-host defaults to 0.0.0.0 (server localhost).
+		■ client-name is optional and allows
+		  client A -> server -> client B connections.
+
 
     example remotes
 
@@ -202,6 +205,8 @@ var clientHelp = `
       192.168.0.5:3000:google.com:80
       socks
       5000:socks
+			80@clientB
+
 
     *When the chisel server has --socks5 enabled, remotes can
     specify "socks" in place of remote-host and remote-port.
@@ -210,6 +215,9 @@ var clientHelp = `
     at the server's internal SOCKS5 proxy.
 
   Options:
+
+		--name, An optional client-name to enable other clients to
+		connect other clients to it.
 
     --fingerprint, A *strongly recommended* fingerprint string
     to perform host-key validation against the server's public key.
@@ -242,6 +250,8 @@ func client(args []string) {
 	proxy := flags.String("proxy", "", "")
 	pid := flags.Bool("pid", false, "")
 	verbose := flags.Bool("v", false, "")
+	name := flags.String("name", "", "")
+
 	flags.Usage = func() {
 		fmt.Print(clientHelp)
 		os.Exit(1)
@@ -264,6 +274,7 @@ func client(args []string) {
 		HTTPProxy:   *proxy,
 		Server:      args[0],
 		Remotes:     args[1:],
+		Name:        *name,
 	})
 	if err != nil {
 		log.Fatal(err)
