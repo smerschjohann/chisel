@@ -17,10 +17,19 @@ import (
 //   192.168.0.1:3000:google.com:80 ->
 //		local 192.168.0.1:3000
 //		remote google.com:80
+//   127.0.0.1:80:127.0.0.1:80@B ->
+//		local 127.0.0.1:80
+//		remote 127.0.0.1:80
+// 		over client named B
+//	80@B ->
+//		local 127.0.0.1:80
+//		remote 127.0.0.1:80
+//		over client named B
 
 type Remote struct {
 	LocalHost, LocalPort, RemoteHost, RemotePort string
 	Socks                                        bool
+	Proxy                                        string
 }
 
 func DecodeRemote(s string) (*Remote, error) {
@@ -37,6 +46,13 @@ func DecodeRemote(s string) (*Remote, error) {
 			r.Socks = true
 			continue
 		}
+
+		if isProxy(p) {
+			proxyParts := strings.Split(p, "@")
+			p = proxyParts[0]
+			r.Proxy = proxyParts[1]
+		}
+
 		if isPort(p) {
 			if !r.Socks && r.RemotePort == "" {
 				r.RemotePort = p
@@ -72,6 +88,15 @@ func DecodeRemote(s string) (*Remote, error) {
 		r.RemoteHost = "0.0.0.0"
 	}
 	return r, nil
+}
+
+//check if remote contains proxy settings
+func isProxy(s string) bool {
+	if strings.Contains(s, "@") {
+		return false
+	}
+
+	return true
 }
 
 var isPortRegExp = regexp.MustCompile(`^\d+$`)
