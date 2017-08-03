@@ -127,5 +127,10 @@ func (r *Remote) Remote() string {
 	if r.Socks {
 		return "socks"
 	}
+
+	if r.Proxy != "" {
+		return r.RemoteHost + ":" + r.RemotePort + "@" + r.Proxy
+	}
+
 	return r.RemoteHost + ":" + r.RemotePort
 }
