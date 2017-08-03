@@ -131,7 +131,7 @@ func (c *Client) Start() error {
 	}
 	//prepare proxies
 	//but skip if client has a name!
-	if c.config.Name != "" {
+	if c.config.Name == "" {
 		for i, r := range c.config.shared.Remotes {
 			proxy := newTCPProxy(c, i, r)
 			if err := proxy.start(); err != nil {
