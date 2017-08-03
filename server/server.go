@@ -314,6 +314,10 @@ func (s *Server) handleSSHRequests(clientLog *chshare.Logger, reqs <-chan *ssh.R
 
 func (s *Server) handleSSHChannels(clientLog *chshare.Logger, chans <-chan ssh.NewChannel) {
 	for ch := range chans {
+		if ch.ChannelType() == "lesihc" {
+			clientLog.Debugf("reverse proxy connection ignore!")
+			continue
+		}
 		remote := string(ch.ExtraData())
 		socks := remote == "socks"
 		//dont accept socks when --socks5 isn't enabled
@@ -336,7 +340,6 @@ func (s *Server) handleSSHChannels(clientLog *chshare.Logger, chans <-chan ssh.N
 			temp := strings.Split(remote, "@")
 			remote = temp[0]
 			proxy := temp[1]
-			s.Debugf("Handle Proxy Stream to %s", proxy)
 			go s.handleProxyStream(clientLog.Fork("proxy#%05d", connID), stream, remote, proxy)
 			continue
 		}
@@ -354,7 +357,7 @@ func (s *Server) handleProxyStream(l *chshare.Logger, src io.ReadWriteCloser, re
 	//get serverConnection from client named "proxy"
 	srvConn := s.addresses[proxy]
 
-	dst, err := chshare.OpenStream(srvConn, remote)
+	dst, err := chshare.OpenReverseStream(srvConn, remote)
 	if err != nil {
 		l.Infof("Proxystream error: %s", err)
 		src.Close()
