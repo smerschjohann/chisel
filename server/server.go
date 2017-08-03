@@ -344,11 +344,11 @@ func (s *Server) handleSSHChannels(clientLog *chshare.Logger, chans <-chan ssh.N
 			temp := strings.Split(remote, "@")
 			proxy = temp[1]
 			if _, ok := s.addresses[proxy]; !ok {
-				s.Debugf("client adasdadij")
-				ch.Reject(ssh.Prohibited,
-					fmt.Sprintf("Client %s does not exists anymore!", proxy))
+				clientLog.Infof("proxy client '%s' does not exists anymore!", proxy)
+				ch.Reject(ssh.ConnectionFailed,
+					fmt.Sprintf("proxy client '%s' does not exists anymore!", proxy))
+				continue
 			}
-			continue
 		}
 		useProxy := proxy != ""
 
@@ -369,7 +369,7 @@ func (s *Server) handleSSHChannels(clientLog *chshare.Logger, chans <-chan ssh.N
 			if socks {
 				go s.handleSocksStream(clientLog.Fork("socks#%05d", connID), stream)
 			} else {
-				go s.handleTCPStream(clientLog.Fork(" tcp#%05d", connID), stream, "0.0.0.0:3001")
+				go s.handleTCPStream(clientLog.Fork(" tcp#%05d", connID), stream, remote)
 			}
 		}
 
