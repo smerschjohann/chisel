@@ -93,10 +93,10 @@ func DecodeRemote(s string) (*Remote, error) {
 //check if remote contains proxy settings
 func isProxy(s string) bool {
 	if strings.Contains(s, "@") {
-		return false
+		return true
 	}
 
-	return true
+	return false
 }
 
 var isPortRegExp = regexp.MustCompile(`^\d+$`)
