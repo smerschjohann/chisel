@@ -25,6 +25,7 @@ type Config struct {
 	Server      string
 	HTTPProxy   string
 	Remotes     []string
+	Name        string
 }
 
 //Client represents a client instance
@@ -198,6 +199,10 @@ func (c *Client) loop() {
 			break
 		}
 		c.config.shared.Version = chshare.BuildVersion
+
+		// Add Name to shared Config
+		c.config.shared.Name = c.config.Name
+
 		conf, _ := chshare.EncodeConfig(c.config.shared)
 		c.Debugf("Sending configurating")
 		t0 := time.Now()
@@ -215,7 +220,9 @@ func (c *Client) loop() {
 		b.Reset()
 		c.sshConn = sshConn
 		go ssh.DiscardRequests(reqs)
-		go chshare.RejectStreams(chans) //TODO allow client to ConnectStreams
+
+		go c.handleSSHChannels(chans)
+
 		err = sshConn.Wait()
 		//disconnected
 		c.sshConn = nil
@@ -226,6 +233,33 @@ func (c *Client) loop() {
 		c.Infof("Disconnected\n")
 	}
 	close(c.runningc)
+}
+
+//Handle incoming SSH Channels for Proxy connections
+func (c *Client) handleSSHChannels(chans <-chan ssh.NewChannel) {
+	for ch := range chans {
+		local := string(ch.ExtraData())
+
+		stream, reqs, err := ch.Accept()
+		if err != nil {
+			c.Debugf("Failed to accept proxy stream: %s", err)
+			continue
+		}
+		go ssh.DiscardRequests(reqs)
+		go c.handleTCPStream(c.Fork("Proxy from Server"), stream, local)
+	}
+}
+
+//Handle a TCP Stream for incoming SSH Channel
+func (c *Client) handleTCPStream(l *chshare.Logger, src io.ReadWriteCloser, local string) {
+	dst, err := net.Dial("tcp", local)
+	if err != nil {
+		l.Debugf("Remote failed (%s)", err)
+		src.Close()
+		return
+	}
+
+	chshare.Pipe(src, dst)
 }
 
 //Wait blocks while the client is running.
