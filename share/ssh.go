@@ -41,16 +41,6 @@ func FingerprintKey(k ssh.PublicKey) string {
 	return strings.Join(strbytes, ":")
 }
 
-func OpenReverseStream(conn ssh.Conn, remote string) (io.ReadWriteCloser, error) {
-	fmt.Printf("OpenReverseChannel! for %s\n", remote)
-	stream, reqs, err := conn.OpenChannel("lesihc", []byte(remote))
-	if err != nil {
-		return nil, err
-	}
-	go ssh.DiscardRequests(reqs)
-	return stream, nil
-}
-
 func OpenStream(conn ssh.Conn, remote string) (io.ReadWriteCloser, error) {
 	stream, reqs, err := conn.OpenChannel("chisel", []byte(remote))
 	if err != nil {

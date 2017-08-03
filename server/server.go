@@ -278,6 +278,17 @@ func (s *Server) handleWS(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 
+	//if proxy-client is given, check if client-name exists
+	//in addresses.
+	for _, r := range c.Remotes {
+		if r.Proxy != "" {
+			if _, ok := s.addresses[r.Proxy]; !ok {
+				failed(s.Errorf("proxy with given clientname '%s' does not exists", r.Proxy))
+				return
+			}
+		}
+	}
+
 	//get name of client
 	if c.Name != "" {
 		if _, ok := s.addresses[c.Name]; ok == true {
@@ -285,7 +296,7 @@ func (s *Server) handleWS(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-		s.Debugf("Add client %s to addresses Map", c.Name)
+		clog.Debugf("add '%s' to addresses", c.Name)
 		s.addresses[c.Name] = sshConn
 		defer delete(s.addresses, c.Name)
 	}
@@ -314,12 +325,12 @@ func (s *Server) handleSSHRequests(clientLog *chshare.Logger, reqs <-chan *ssh.R
 
 func (s *Server) handleSSHChannels(clientLog *chshare.Logger, chans <-chan ssh.NewChannel) {
 	for ch := range chans {
-		s.Debugf("ChannelType %s", ch.ChannelType())
-		if ch.ChannelType() != "chisel" {
-			s.Debugf("reverse proxy connection ignore!")
-			continue
-		}
-		remote := string(ch.ExtraData())
+		var remote string
+		var proxy string
+
+		remote = string(ch.ExtraData())
+		proxy = ""
+
 		socks := remote == "socks"
 		//dont accept socks when --socks5 isn't enabled
 		if socks && s.socksServer == nil {
@@ -327,6 +338,20 @@ func (s *Server) handleSSHChannels(clientLog *chshare.Logger, chans <-chan ssh.N
 			ch.Reject(ssh.Prohibited, "SOCKS5 is not enabled on the server")
 			continue
 		}
+
+		// check proxy and check if client is present before accept
+		if strings.Contains(remote, "@") {
+			temp := strings.Split(remote, "@")
+			proxy = temp[1]
+			if _, ok := s.addresses[proxy]; !ok {
+				s.Debugf("client adasdadij")
+				ch.Reject(ssh.Prohibited,
+					fmt.Sprintf("Client %s does not exists anymore!", proxy))
+			}
+			continue
+		}
+		useProxy := proxy != ""
+
 		//accept rest
 		stream, reqs, err := ch.Accept()
 		if err != nil {
@@ -334,30 +359,37 @@ func (s *Server) handleSSHChannels(clientLog *chshare.Logger, chans <-chan ssh.N
 			continue
 		}
 		go ssh.DiscardRequests(reqs)
+
 		//handle stream type
 		connID := atomic.AddInt32(&s.connCount, 1)
 
-		if strings.Contains(remote, "@") {
-			temp := strings.Split(remote, "@")
-			remote = temp[0]
-			proxy := temp[1]
+		if useProxy {
 			go s.handleProxyStream(clientLog.Fork("proxy#%05d", connID), stream, remote, proxy)
-			continue
+		} else {
+			if socks {
+				go s.handleSocksStream(clientLog.Fork("socks#%05d", connID), stream)
+			} else {
+				go s.handleTCPStream(clientLog.Fork(" tcp#%05d", connID), stream, "0.0.0.0:3001")
+			}
 		}
 
-		if socks {
-			go s.handleSocksStream(clientLog.Fork("socks#%05d", connID), stream)
-		} else {
-			go s.handleTCPStream(clientLog.Fork(" tcp#%05d", connID), stream, "0.0.0.0:3001")
-		}
 	}
 }
 
 func (s *Server) handleProxyStream(l *chshare.Logger, src io.ReadWriteCloser, remote string, proxy string) {
 	//get serverConnection from client named "proxy"
-	srvConn := s.addresses[proxy]
+	srvConn, ok := s.addresses[proxy]
 
-	dst, err := chshare.OpenReverseStream(srvConn, remote)
+	//client does not exists anymore!
+	if ok == false {
+		l.Infof("client %s does not exists anymore!", proxy)
+		src.Close()
+		return
+	}
+
+	remoteAddr := strings.Split(remote, "@")[0]
+
+	dst, err := chshare.OpenStream(srvConn, remoteAddr)
 	if err != nil {
 		l.Infof("Proxystream error: %s", err)
 		src.Close()
@@ -389,7 +421,7 @@ func (s *Server) handleSocksStream(l *chshare.Logger, src io.ReadWriteCloser) {
 func (s *Server) handleTCPStream(l *chshare.Logger, src io.ReadWriteCloser, remote string) {
 	dst, err := net.Dial("tcp", remote)
 	if err != nil {
-		l.Debugf("RemoteF failed (%s) %s", err, remote)
+		l.Debugf("RemotF failed (%s)", err)
 		src.Close()
 		return
 	}
