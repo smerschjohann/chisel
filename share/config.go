@@ -7,8 +7,8 @@ import (
 
 type Config struct {
 	Version string
-	Remotes []*Remote
 	Name    string
+	Remotes []*Remote
 }
 
 func DecodeConfig(b []byte) (*Config, error) {

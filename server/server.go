@@ -344,7 +344,8 @@ func (s *Server) handleSSHChannels(clientLog *chshare.Logger, chans <-chan ssh.N
 		if socks {
 			go s.handleSocksStream(clientLog.Fork("socks#%05d", connID), stream)
 		} else {
-			go s.handleTCPStream(clientLog.Fork(" tcp#%05d", connID), stream, remote)
+			s.Debugf("remote: %s", remote)
+			go s.handleTCPStream(clientLog.Fork(" tcp#%05d", connID), stream, "0.0.0.0:3001")
 		}
 	}
 }
@@ -385,7 +386,7 @@ func (s *Server) handleSocksStream(l *chshare.Logger, src io.ReadWriteCloser) {
 func (s *Server) handleTCPStream(l *chshare.Logger, src io.ReadWriteCloser, remote string) {
 	dst, err := net.Dial("tcp", remote)
 	if err != nil {
-		l.Debugf("Remote failed (%s)", err)
+		l.Debugf("RemoteF failed (%s) %s", err, remote)
 		src.Close()
 		return
 	}

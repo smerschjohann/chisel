@@ -252,6 +252,7 @@ func (c *Client) handleSSHChannels(chans <-chan ssh.NewChannel) {
 
 //Handle a TCP Stream for incoming SSH Channel
 func (c *Client) handleTCPStream(l *chshare.Logger, src io.ReadWriteCloser, local string) {
+	c.Debugf("test handleTCP Stream.. %s .", local)
 	dst, err := net.Dial("tcp", local)
 	if err != nil {
 		l.Debugf("Remote failed (%s)", err)
