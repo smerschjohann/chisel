@@ -193,8 +193,8 @@ var clientHelp = `
     ■ local-port defaults to remote-port.
     ■ remote-port is required*.
     ■ remote-host defaults to 0.0.0.0 (server localhost).
-		■ client-name is optional and allows
-		  client A -> server -> client B connections.
+    ■ client-name is optional and allows
+      client A -> server -> client B connections.
 
 
     example remotes
@@ -205,7 +205,7 @@ var clientHelp = `
       192.168.0.5:3000:google.com:80
       socks
       5000:socks
-			80@clientB
+      80@clientB
 
 
     *When the chisel server has --socks5 enabled, remotes can
@@ -216,8 +216,8 @@ var clientHelp = `
 
   Options:
 
-		--name, An optional client-name to enable other clients to
-		connect other clients to it.
+    --name, An optional client-name to enable other clients to
+    connect other clients to it.
 
     --fingerprint, A *strongly recommended* fingerprint string
     to perform host-key validation against the server's public key.
