@@ -259,7 +259,7 @@ func client(args []string) {
 	flags.Parse(args)
 	//pull out options, put back remaining args
 	args = flags.Args()
-	if len(args) < 2 {
+	if *name=="" && len(args) < 2 {
 		log.Fatalf("A server and least one remote is required")
 	}
 
